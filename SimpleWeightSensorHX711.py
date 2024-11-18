@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import os
 import pickle
 import csv
@@ -6,15 +7,10 @@ from datetime import datetime
 from hx711 import HX711  # Import HX711 library
 import RPi.GPIO as GPIO
 
-#Hardware used:
-# - HX7111 Load cell amplifier HX711 breakout  https://www.electrokit.com/en/hx711-lastcellsforstarkare-monterad-pa-kort 
-# - Loadcell - e.g. https://www.electrokit.com/en/lastcell-5kg 
-
-
 # Constants
-SWAP_FILE = 'hx711_calibration.swp'
-CSV_FILE = 'weight_readings.csv'
-MEASUREMENT_INTERVAL = 10  # Measurement interval in seconds (default: 10)
+SWAP_FILE = '/home/pi/hx711_calibration.swp'  # Path for storing calibration data
+CSV_FILE = '/home/pi/weight_readings.csv'     # Path for storing the CSV file
+MEASUREMENT_INTERVAL = 10  # Default measurement interval in seconds
 
 def calibrate_sensor(hx):
     """Calibrates the HX711 sensor using a known weight."""
