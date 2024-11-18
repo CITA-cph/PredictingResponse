@@ -47,16 +47,16 @@ def main():
     # Print initial reading after tare
     reading = hx.get_raw_data_mean()
     if reading:
-        print('Data subtracted by offset but still not converted to units:', reading)
+        print('Initial measurment done1 Data subtracted by offset but still not converted to units:', reading)
     else:
         print('Invalid data', reading)
 
     # Calibration process with known weight (optional step)
-    input('Put known weight on the scale and then press Enter')
+    input('Calibrate the scale: 1) put known weight on the scale and then press Enter')
     reading = hx.get_data_mean()
     if reading:
         print('Mean value from HX711 subtracted by offset:', reading)
-        known_weight_grams = input('Write how many grams it was and press Enter: ')
+        known_weight_grams = input('2) Write how many grams it was and press Enter: ')
         try:
             value = float(known_weight_grams)
             print(value, 'grams')
