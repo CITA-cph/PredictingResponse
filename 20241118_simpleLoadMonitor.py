@@ -8,15 +8,16 @@ import os
 # CSV file path
 CSV_FILE = 'cita-load.csv'
 
-def log_to_csv(timestamp, weight):
-    """Logs the weight and timestamp to a CSV file."""
+def log_to_csv(sample_name, timestamp, weight):
+    """Logs the sample name, timestamp, and weight to a CSV file."""
     file_exists = os.path.isfile(CSV_FILE)
     with open(CSV_FILE, mode='a', newline='') as file:
         writer = csv.writer(file)
         if not file_exists:
-            writer.writerow(['Timestamp', 'Weight (grams)'])  # Write header if file is new
-        writer.writerow([timestamp, weight])
-    print(f"Logged: {timestamp}, {weight} grams")
+            # Write the header row, including the sample name
+            writer.writerow(['Sample', 'Timestamp', 'Weight (grams)'])
+        writer.writerow([sample_name, timestamp, weight])
+    print(f"Logged: {sample_name} - {timestamp}, {weight} grams")
 
 
 def get_average_weight(hx, interval_seconds):
@@ -78,6 +79,10 @@ def main():
         print(f"Invalid interval value: {e}. Defaulting to 10 seconds.")
         interval_seconds = 10  # Default to 10 seconds if invalid input
 
+    # Ask the user to define the sample (a string to be logged)
+    sample_name = input('Enter a description or name for this sample: ')
+    print(f"Sample name set to: {sample_name}")
+
     # Inform user about stopping the measurement with 'CTRL + C'
     print(f"Starting continuous measurements with an interval of {interval_seconds} seconds. Press 'CTRL + C' to stop the measurement.")
 
@@ -90,10 +95,10 @@ def main():
             # Get current timestamp
             timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
             
-            # Log the timestamp and average weight into the CSV file
-            log_to_csv(timestamp, average_weight)
+            # Log the sample name, timestamp, and average weight into the CSV file
+            log_to_csv(sample_name, timestamp, average_weight)
 
-            print(f"{timestamp} - Average Weight: {average_weight:.2f} grams")
+            print(f"{timestamp} - {sample_name} - Average Weight: {average_weight:.2f} grams")
 
             # Wait for the next cycle
             time.sleep(interval_seconds)  # Wait for the user-defined interval before next measurement
