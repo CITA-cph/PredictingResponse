@@ -11,8 +11,8 @@ CSV_FILE = 'cita-load.csv'
 def log_to_csv(sample_name, timestamp, weight):
     """Logs the sample name, timestamp, and weight to a CSV file."""
     file_exists = os.path.isfile(CSV_FILE)
-    with open(CSV_FILE, mode='a', newline='') as file:
-        writer = csv.writer(file)
+    with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file, quotechar='"', quoting=csv.QUOTE_MINIMAL)
         if not file_exists:
             # Write the header row, including the sample name
             writer.writerow(['Sample', 'Timestamp', 'Weight (grams)'])
@@ -47,16 +47,16 @@ def main():
     # Print initial reading after tare
     reading = hx.get_raw_data_mean()
     if reading:
-        print('Initial measurment done1 Data subtracted by offset but still not converted to units:', reading)
+        print('Data subtracted by offset but still not converted to units:', reading)
     else:
         print('Invalid data', reading)
 
     # Calibration process with known weight (optional step)
-    input('Calibrate the scale: 1) put known weight on the scale and then press Enter')
+    input('Put known weight on the scale and then press Enter')
     reading = hx.get_data_mean()
     if reading:
         print('Mean value from HX711 subtracted by offset:', reading)
-        known_weight_grams = input('2) Write how many grams it was and press Enter: ')
+        known_weight_grams = input('Write how many grams it was and press Enter: ')
         try:
             value = float(known_weight_grams)
             print(value, 'grams')
