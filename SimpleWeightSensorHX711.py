@@ -1,101 +1,76 @@
 #!/usr/bin/python3
-import os
-import pickle
-import csv
 import time
-from datetime import datetime
-from hx711 import HX711  # Import HX711 library
+import csv
+from hx711 import HX711
 import RPi.GPIO as GPIO
 
-# Constants
-SWAP_FILE = '/home/pi/hx711_calibration.swp'  # Path for storing calibration data
-CSV_FILE = '/home/pi/weight_readings.csv'     # Path for storing the CSV file
-MEASUREMENT_INTERVAL = 10  # Default measurement interval in seconds
+# Calibration function
+def calibrate(hx711, known_weight):
+    print("Calibrating... Please place a known weight on the scale.")
+    raw_data = hx711.get_raw_data(times=10)
+    average_raw_value = sum(raw_data) / len(raw_data)  # Get the average raw value
+    print(f"Average raw value (without weight): {average_raw_value}")
+    
+    # The calibration factor is derived as:
+    calibration_factor = average_raw_value / known_weight
+    print(f"Calibration factor: {calibration_factor}")
+    
+    return calibration_factor
 
-def calibrate_sensor(hx):
-    """Calibrates the HX711 sensor using a known weight."""
-    print("Starting calibration...")
-    try:
-        # Tare the scale
-        print("Taring the scale (please ensure no weight on the scale)...")
-        err = hx.zero()
-        if err:
-            raise ValueError('Tare failed.')
-        print("Tare successful.")
+# Function to get weight in grams
+def get_weight(hx711, calibration_factor):
+    raw_data = hx711.get_raw_data(times=10)
+    average_raw_value = sum(raw_data) / len(raw_data)  # Average of multiple readings
+    weight = average_raw_value / calibration_factor  # Apply calibration factor
+    return weight
 
-        # Read raw data and prompt user for a known weight
-        reading = hx.get_data_mean()
-        if not reading:
-            raise ValueError('Invalid reading during calibration.')
+# Initialize HX711
+hx711 = HX711(
+    dout_pin=17,
+    pd_sck_pin=21,
+    channel='A',
+    gain=64
+)
 
-        print(f"Raw reading: {reading}")
-        known_weight = float(input("Place a known weight (in grams) on the scale and enter its value: "))
-        ratio = reading / known_weight
-        hx.set_scale_ratio(ratio)
-        print(f"Calibration successful! Scale ratio set to {ratio}")
+# Calibration setup (example)
+known_weight = 100  # Known weight in grams for calibration
 
-        return hx
-    except ValueError as e:
-        print(f"Error during calibration: {e}")
-        return None
+# Set up GPIO cleanup at the end
+try:
+    hx711.reset()  # Before we start, reset the HX711 (optional)
 
-def load_or_calibrate_sensor():
-    """Loads calibration data or prompts for calibration."""
-    hx = HX711(dout_pin=20, pd_sck_pin=21)
-    if os.path.isfile(SWAP_FILE):
-        with open(SWAP_FILE, 'rb') as file:
-            hx = pickle.load(file)
-            print("Loaded saved calibration.")
-    else:
-        hx = calibrate_sensor(hx)
-        if hx:
-            with open(SWAP_FILE, 'wb') as file:
-                pickle.dump(hx, file)
-    return hx
-
-def log_to_csv(timestamp, weight):
-    """Logs a weight measurement to a CSV file."""
-    try:
-        file_exists = os.path.isfile(CSV_FILE)
-        with open(CSV_FILE, mode='a', newline='') as file:
-            writer = csv.writer(file)
-            if not file_exists:
-                writer.writerow(["Timestamp", "Weight (grams)"])  # Write header if file is new
+    # Calibrate with known weight
+    calibration_factor = calibrate(hx711, known_weight)
+    
+    # Set up CSV file to write measurements
+    csv_file = '/home/pi/force_gauge_measurements.csv'
+    with open(csv_file, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Timestamp', 'Weight (grams)'])  # Write headers
+        
+        # Take measurements at defined intervals
+        interval_seconds = 5  # Time interval between measurements (in seconds)
+        duration_minutes = 10  # Total duration of the measurement session (in minutes)
+        
+        start_time = time.time()
+        
+        while time.time() - start_time < duration_minutes * 60:
+            # Get the weight reading
+            weight = get_weight(hx711, calibration_factor)
+            
+            # Get the current timestamp
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+            
+            # Write to CSV file
             writer.writerow([timestamp, weight])
-        print(f"Logged: {timestamp}, {weight} grams")
-    except Exception as e:
-        print(f"Error writing to CSV: {e}")
-
-def measure_and_log_weight(hx, interval):
-    """Measures weight and logs it to a CSV file at a defined interval."""
-    print(f"Starting weight measurements every {interval} seconds. Press Ctrl+C to stop.")
-    try:
-        while True:
-            weight = hx.get_weight_mean(50)  # Average of 50 readings
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Print the result (optional)
             print(f"{timestamp} - Weight: {weight:.2f} grams")
-            log_to_csv(timestamp, weight)
-            time.sleep(interval)  # Wait for the defined interval
-    except KeyboardInterrupt:
-        print("Measurement stopped.")
-    finally:
-        GPIO.cleanup()
+            
+            # Wait for the next interval
+            time.sleep(interval_seconds)
+    
+finally:
+    GPIO.cleanup()  # Always clean up GPIO to avoid issues
 
-def main():
-    global MEASUREMENT_INTERVAL
-
-    # Allow user to adjust measurement interval at runtime
-    try:
-        user_interval = input(f"Enter measurement interval in seconds (default: {MEASUREMENT_INTERVAL}): ")
-        if user_interval.strip():
-            MEASUREMENT_INTERVAL = int(user_interval)
-    except ValueError:
-        print("Invalid input. Using default interval.")
-
-    GPIO.setmode(GPIO.BCM)
-    hx = load_or_calibrate_sensor()
-    if hx:
-        measure_and_log_weight(hx, MEASUREMENT_INTERVAL)
-
-if __name__ == "__main__":
-    main()
+print("Measurement session completed.")
