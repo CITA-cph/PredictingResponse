@@ -5,49 +5,8 @@ import csv
 import time
 import os
 
-# File paths
-CALIBRATION_FILE = '/home/pi/loadcell.calib'
-CSV_FILE = '/home/pi/CITA-load.csv'
-
-
-def save_calibration_data(calibration_factor):
-    """Saves calibration data to a file."""
-    with open(CALIBRATION_FILE, 'w') as file:
-        file.write(str(calibration_factor))
-    print("Calibration data saved.")
-
-
-def load_calibration_data():
-    """Loads calibration data from a file."""
-    if os.path.isfile(CALIBRATION_FILE):
-        with open(CALIBRATION_FILE, 'r') as file:
-            calibration_factor = float(file.read())
-        print("Loaded calibration data.")
-        return calibration_factor
-    else:
-        return None
-
-
-def calibrate(hx711, known_weight):
-    """Calibrates the HX711 using a known weight."""
-    print("Calibrating... Please place a known weight on the scale.")
-    raw_data = hx711.get_data_mean(times=10)
-    average_raw_value = sum(raw_data) / len(raw_data)
-    print(f"Average raw value (without weight): {average_raw_value}")
-    
-    calibration_factor = average_raw_value / known_weight
-    print(f"Calibration factor: {calibration_factor}")
-    
-    return calibration_factor
-
-
-def get_weight(hx711, calibration_factor):
-    """Reads the weight from the scale using the calibration factor."""
-    raw_data = hx711.get_data_mean(times=10)
-    average_raw_value = sum(raw_data) / len(raw_data)
-    weight = average_raw_value / calibration_factor
-    return weight
-
+# CSV file path
+CSV_FILE = 'cita-load.csv'
 
 def log_to_csv(timestamp, weight):
     """Logs the weight and timestamp to a CSV file."""
@@ -60,57 +19,78 @@ def log_to_csv(timestamp, weight):
     print(f"Logged: {timestamp}, {weight} grams")
 
 
-def measure_and_log_weight(hx711, calibration_factor, interval_seconds):
-    """Measures and logs the weight every interval_seconds."""
-    print(f"Taking measurements every {interval_seconds} seconds. Press Ctrl+C to stop.")
+def get_average_weight(hx, interval_seconds):
+    """Takes the average of the measurements in the last 'interval_seconds' seconds."""
+    weight_readings = []
+    start_time = time.time()
+    while time.time() - start_time < interval_seconds:
+        weight = hx.get_weight_mean(10)  # Take a reading (mean of 10 samples)
+        weight_readings.append(weight)
+        time.sleep(1)  # Wait 1 second before the next reading
     
+    average_weight = sum(weight_readings) / len(weight_readings)
+    return average_weight
+
+
+def main():
+    GPIO.setmode(GPIO.BCM)
+
+    # Create an HX711 instance
+    hx = HX711(dout_pin=21, pd_sck_pin=20)
+
+    # Measure tare and save the value as offset for current channel and gain selected
+    err = hx.zero()
+    if err:
+        raise ValueError('Tare is unsuccessful.')
+
+    # Print initial reading after tare
+    reading = hx.get_raw_data_mean()
+    if reading:
+        print('Data subtracted by offset but still not converted to units:', reading)
+    else:
+        print('Invalid data', reading)
+
+    # Calibration process with known weight (optional step)
+    input('Put known weight on the scale and then press Enter')
+    reading = hx.get_data_mean()
+    if reading:
+        print('Mean value from HX711 subtracted by offset:', reading)
+        known_weight_grams = input('Write how many grams it was and press Enter: ')
+        try:
+            value = float(known_weight_grams)
+            print(value, 'grams')
+        except ValueError:
+            print('Expected integer or float and I have got:', known_weight_grams)
+
+        ratio = reading / value  # Calculate the ratio for channel A and gain 128
+        hx.set_scale_ratio(ratio)  # Set the ratio for current channel
+        print('Ratio is set.')
+    else:
+        raise ValueError('Cannot calculate mean value. Try debug mode. Variable reading:', reading)
+
+    # Start continuous measurement every 10 seconds
+    print("Starting continuous measurements. Press 'CTRL + C' to exit.")
     try:
         while True:
-            # Get the average weight over the defined interval
-            weight_readings = []
-            start_time = time.time()
-            while time.time() - start_time < interval_seconds:
-                weight = get_weight(hx711, calibration_factor)
-                weight_readings.append(weight)
-                time.sleep(1)  # Sleep for 1 second before taking the next reading
+            # Get the average weight reading over the last 10 seconds
+            average_weight = get_average_weight(hx, 10)
             
-            average_weight = sum(weight_readings) / len(weight_readings)
+            # Get current timestamp
             timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-            log_to_csv(timestamp, average_weight)  # Log the weight with the timestamp
+            
+            # Log the timestamp and average weight into the CSV file
+            log_to_csv(timestamp, average_weight)
 
             print(f"{timestamp} - Average Weight: {average_weight:.2f} grams")
 
-            time.sleep(interval_seconds)  # Wait for the next measurement cycle
+            # Wait for the next cycle
+            time.sleep(10)  # Wait 10 seconds before next measurement cycle
 
     except KeyboardInterrupt:
         print("Measurement stopped.")
 
-
-def main():
-    """Main function to start the program."""
-    GPIO.setmode(GPIO.BCM)
-
-    # Create an HX711 instance
-    hx711 = HX711(dout_pin=21, pd_sck_pin=20)
-
-    # Load calibration data or calibrate if not found
-    calibration_factor = load_calibration_data()
-
-    if calibration_factor is None:
-        print("Calibration data not found. Proceeding with calibration...")
-        known_weight = float(input("Enter a known weight (in grams) for calibration: "))
-        calibration_factor = calibrate(hx711, known_weight)
-        save_calibration_data(calibration_factor)  # Save the calibration data to a file
-    else:
-        print(f"Using loaded calibration factor: {calibration_factor}")
-
-    # Ask for the measurement interval in seconds
-    interval_seconds = int(input("Enter the measurement interval in seconds: "))
-
-    # Start measuring and logging weight
-    measure_and_log_weight(hx711, calibration_factor, interval_seconds)
-
-    GPIO.cleanup()  # Clean up GPIO pins
+    finally:
+        GPIO.cleanup()
 
 
 if __name__ == "__main__":
