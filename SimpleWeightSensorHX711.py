@@ -7,7 +7,9 @@ import RPi.GPIO as GPIO
 # Calibration function
 def calibrate(hx711, known_weight):
     print("Calibrating... Please place a known weight on the scale.")
-    raw_data = hx711.get_raw_data(times=10)
+    
+    # Read multiple samples to calculate average raw value
+    raw_data = hx711.get_data_mean(times=10)
     average_raw_value = sum(raw_data) / len(raw_data)  # Get the average raw value
     print(f"Average raw value (without weight): {average_raw_value}")
     
@@ -19,7 +21,7 @@ def calibrate(hx711, known_weight):
 
 # Function to get weight in grams
 def get_weight(hx711, calibration_factor):
-    raw_data = hx711.get_raw_data(times=10)
+    raw_data = hx711.get_data_mean(times=10)
     average_raw_value = sum(raw_data) / len(raw_data)  # Average of multiple readings
     weight = average_raw_value / calibration_factor  # Apply calibration factor
     return weight
@@ -38,6 +40,9 @@ known_weight = 100  # Known weight in grams for calibration
 # Set up GPIO cleanup at the end
 try:
     hx711.reset()  # Before we start, reset the HX711 (optional)
+
+    # Tare the scale (reset it)
+    hx711.tare()  # Use tare() instead of zero()
 
     # Calibrate with known weight
     calibration_factor = calibrate(hx711, known_weight)
