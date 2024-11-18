@@ -68,12 +68,24 @@ def main():
     else:
         raise ValueError('Cannot calculate mean value. Try debug mode. Variable reading:', reading)
 
-    # Start continuous measurement every 10 seconds
-    print("Starting continuous measurements. Press 'CTRL + C' to exit.")
+    # Ask the user for the interval in seconds
+    interval_seconds = input('Enter the time interval for average measurement (in seconds): ')
+    try:
+        interval_seconds = int(interval_seconds)
+        if interval_seconds <= 0:
+            raise ValueError('Interval must be a positive integer.')
+    except ValueError as e:
+        print(f"Invalid interval value: {e}. Defaulting to 10 seconds.")
+        interval_seconds = 10  # Default to 10 seconds if invalid input
+
+    # Inform user about stopping the measurement with 'CTRL + C'
+    print(f"Starting continuous measurements with an interval of {interval_seconds} seconds. Press 'CTRL + C' to stop the measurement.")
+
+    # Start continuous measurement
     try:
         while True:
-            # Get the average weight reading over the last 10 seconds
-            average_weight = get_average_weight(hx, 10)
+            # Get the average weight reading over the user-defined interval
+            average_weight = get_average_weight(hx, interval_seconds)
             
             # Get current timestamp
             timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
@@ -84,10 +96,10 @@ def main():
             print(f"{timestamp} - Average Weight: {average_weight:.2f} grams")
 
             # Wait for the next cycle
-            time.sleep(10)  # Wait 10 seconds before next measurement cycle
+            time.sleep(interval_seconds)  # Wait for the user-defined interval before next measurement
 
     except KeyboardInterrupt:
-        print("Measurement stopped.")
+        print("Measurement stopped by user.")
 
     finally:
         GPIO.cleanup()
